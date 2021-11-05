@@ -2,7 +2,7 @@
 TEST_DIR=.
 RES_DIR=/home/noiro/test_results
 mkdir $RES_DIR
-for i in $(ls $TEST_DIR/test_*.py); do
+for i in $(ls $TEST_DIR/test_*.py | xargs -n 1 basename); do
   echo running $i
   sudo docker run --rm --net=host \
   -e PYTHONPATH=/acc-pytests \
