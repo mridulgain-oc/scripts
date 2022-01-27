@@ -1,0 +1,82 @@
+// A declarative pipeline to check cluster operator health on a given fab
+
+def REMOTE = [:]
+REMOTE.allowAnyHosts = true
+def CONFIG_HOST = [host: 'noiro-containers-ctrl']
+def CONFIG_ROOT = "acc-pytests-jobs-config"
+def INPUT_DIR = "config"
+def DATA_DIR = "data"
+def SCRIPT_DIR = "scripts"
+def NODE_INFO_YAML = "nodes_info.yaml"
+def UNIT_TEST_SCRIPT = "tests/test_cluster_operator.py"
+def JUNIT_XML = "cluster_operator_report.xml"
+def KUBE_CONFIG = "config"
+def CRON_STRING = "H/15 * * * *"
+def IMAGE_NAME = 'noirolabs/acc-pytests'
+
+pipeline {
+    agent any
+
+    triggers { cron(CRON_STRING) }
+
+    parameters {
+        choice(choices: ["${env.JOB_NAME}".split("/")[-1]],
+             name: 'Cluster',
+             description: "cluster to operate")
+    }
+
+    stages {
+        stage('Cluster operator health'){ steps{ script{
+            // get fab data from containers-controller 
+            def cluster = params.Cluster
+            _updateRemoteCmd(CONFIG_HOST)
+            def controller_base = "/home/${CONFIG_HOST.user}/${CONFIG_ROOT}/${cluster}"
+            _sshGet(CONFIG_HOST, controller_base, cluster)
+            def data = readYaml file: "${cluster}/${INPUT_DIR}/${NODE_INFO_YAML}"
+            def routerIP = data.external_router_nodes[0]['host_ip']
+            // send data to fab
+            REMOTE.host = routerIP
+            _updateRemoteCmd(REMOTE)
+            def fab_base = "/home/${REMOTE.user}/${CONFIG_ROOT}/${cluster}"
+            _sshPut(REMOTE, cluster, fab_base)
+            // run unit test
+            def IMAGE_TAG = "${GIT_BRANCH.split("/")[1]}"
+            def cmd = "sudo docker run --rm --net=host \
+                -v ${fab_base}/${INPUT_DIR}/${KUBE_CONFIG}:/.kube/config \
+                -v ${fab_base}/${INPUT_DIR}/manage.yaml:/acc-pytests/acc_pyutils/pyutils_cfg.yaml \
+                -v ${fab_base}/${DATA_DIR}:/${DATA_DIR} ${IMAGE_NAME}:${IMAGE_TAG} \
+                python3 -m pytest -s ${UNIT_TEST_SCRIPT} --junit-xml=${DATA_DIR}/${JUNIT_XML}"
+            _sshCommand(REMOTE, cmd)
+            // test analyser
+            _sshGet(REMOTE, "${fab_base}/${DATA_DIR}/${JUNIT_XML}", JUNIT_XML)
+            junit(allowEmptyResults: true, testResults: JUNIT_XML)
+        }}}
+    }
+}
+
+def _updateRemoteCmd(remote) {
+    withCredentials([[
+        $class: 'UsernamePasswordMultiBinding', credentialsId: 'noirop', 
+        usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD']]) {
+        remote.user = "${USERNAME}"
+        remote.password = "${PASSWORD}"
+    }
+    sh "ssh-keygen -R ${remote.host}"
+    remote.sshCommand = "sshpass -v -p ${remote.password} \
+        ssh -o StrictHostKeyChecking=no ${remote.user}@${remote.host} "
+    remote.sshp = "sshpass -v -p ${remote.password} "
+}
+
+def _sshGet(remote, from, into) {
+    sh "${remote.sshp} scp -o StrictHostKeyChecking=no -r \
+        ${remote.user}@${remote.host}:${from} ${into}"
+}
+
+def _sshPut(remote, from, into) {
+    sh "${remote.sshp} scp -o StrictHostKeyChecking=no -r \
+        ${from} ${remote.user}@${remote.host}:${into}"
+}
+
+def _sshCommand(remote, cmd) {
+    sh "${remote.sshCommand} ${cmd}"
+}
