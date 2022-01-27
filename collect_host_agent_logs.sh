@@ -5,12 +5,13 @@ do
         host_pods=$(kubectl get po -n aci-containers-system  | grep -i host | awk '{ print $1 }')
         for po in $host_pods
         do
+                cmd="kubectl logs -n aci-containers-system $po -c aci-containers-host --previous"
                 echo "checking " $po
-                race=$(kubectl logs -n aci-containers-system $po -c aci-containers-host --previous | grep -iw race)
+                race=$($cmd | grep -iw race)
                 if [[ ! -z "$race" ]]
                 then
-            echo $po: $race
-                        kubectl logs -n aci-containers-system $po -c aci-containers-host --previous > $po-$i.log
+                        echo $po: $race
+                        $cmd > $po-$i.log
                 fi
         #echo deleting: $po
         #kubectl delete po -n aci-containers-system $po > /dev/null
@@ -19,12 +20,13 @@ do
         ctrl_pods=$(kubectl get po -n aci-containers-system  | grep -i controller | awk '{ print $1 }')
         for po in $ctrl_pods
         do
-              race=$(kubectl logs -n aci-containers-system $po  | grep -iw race)
-              if [[ ! -z "$race" ]]
-              then
-           echo $po: $race
-                      kubectl logs -n aci-containers-system $po > $po-$i.log
-              fi
+                cmd="kubectl logs -n aci-containers-system $po "
+                race=$($cmd | grep -iw race)
+                if [[ ! -z "$race" ]]
+                then
+                        echo $po: $race
+                        $cmd > $po-$i.log
+                fi
         done
     i=$((i+1))
         sleep 300
