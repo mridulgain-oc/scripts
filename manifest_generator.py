@@ -1,8 +1,9 @@
 import os, yaml
 
-RESOURCE_SET=1 # each set contains a namespace, an snatpolicy, a deployment & a service
-OUTPUT_PATH = './yamls'
-REPLICAS=50
+RESOURCE_SET=300 # each set contains a namespace, an snatpolicy, an ngnix deployment & a service
+REPLICAS=1 # no of pods per deployment or, no of endpoints per service
+# OUTPUT_PATH = './yamls'
+OUTPUT_FILE = 'resources.yaml'
 MANIFEST_BASE = '''
 ---
 apiVersion: v1
@@ -41,8 +42,8 @@ spec:
         ports:
         - containerPort: 8080
         imagePullPolicy: IfNotPresent
-      nodeSelector:
-       kubernetes.io/hostname: openupi-nchx2-worker-0-djc2h
+    #   nodeSelector:
+    #    kubernetes.io/hostname: openupi-nchx2-worker-0-djc2h
 
 ---
 apiVersion: v1
@@ -59,11 +60,7 @@ spec:
     targetPort: 8080
   type: LoadBalancer
 '''
-try:
-    os.mkdir(OUTPUT_PATH)
-except FileExistsError:
-    pass
-
+out = []
 for i in range(1, RESOURCE_SET+1):
     i = str(i)
     # yamls = yaml.safe_load_all(open('resources.yaml','r'))
@@ -95,7 +92,9 @@ for i in range(1, RESOURCE_SET+1):
     svc['metadata']['namespace'] += i
     svc['spec']['selector']['name'] += i
 
-    fout = os.path.join(OUTPUT_PATH, f"resources-{i}.yaml")
-    print(fout)
-    with (open(fout,'w')) as f:
-        yaml.dump_all(yamls, f)
+    out.extend(yamls)
+    # fout = os.path.join(OUTPUT_PATH, f"resources-{i}.yaml")
+print(OUTPUT_FILE)
+with (open(OUTPUT_FILE,'w')) as f:
+    yaml.dump_all(out, f)
+
