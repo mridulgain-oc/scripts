@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dummy-ns-1
+---
+apiVersion: aci.snat/v1
+kind: SnatPolicy
+metadata:
+  name: dummy-snatpolicy-1
+spec:
+  selector:
+    namespace: dummy-ns-1
+  snatIp:
+  - 151.20.1.1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dummy-nginx-deploy-1
+  namespace: dummy-ns-1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      name: dummy-resource-1
+  template:
+    metadata:
+      labels:
+        name: dummy-resource-1
+    spec:
+      containers:
+      - image: noiro-quay.cisco.com/noiro/nginx-non-root:un
+        imagePullPolicy: IfNotPresent
+        name: nginx
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service-1
+  namespace: dummy-ns-1
+spec:
+  ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    name: dummy-resource-1
+  type: LoadBalancer
