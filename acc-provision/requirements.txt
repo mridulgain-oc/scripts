@@ -1,0 +1,11 @@
+requests
+PyYAML
+#  sudo apt-get install libssl-dev
+# sudo curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+setuptools-rust
+pyOpenSSL
+Jinja2
+boto3
+flake8
+pytest
+setuptools-rust
